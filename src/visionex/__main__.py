@@ -95,8 +95,9 @@ class ImageLabel(QLabel):
             scale_x = pixmap_size.width() / label_size.width()
             scale_y = pixmap_size.height() / label_size.height()
 
-            x = event.pos().x() * scale_x
-            y = event.pos().y() * scale_y
+            # ИСПРАВЛЕНО: используем position() вместо pos()
+            x = event.position().x() * scale_x
+            y = event.position().y() * scale_y
 
             self.points.append((x, y))
             self.update_display()
@@ -223,15 +224,13 @@ class MainWindow(QMainWindow):
         scale_group.setLayout(scale_layout)
         right_layout.addWidget(scale_group)
 
-        # НОВЫЙ БЛОК: Размер изображения (растягивание)
+        # Размер изображения
         size_group = QGroupBox("Размер изображения (пиксели)")
         size_layout = QVBoxLayout()
 
-        # Текущий размер
         self.current_size_label = QLabel("Текущий размер: не загружено")
         size_layout.addWidget(self.current_size_label)
 
-        # Поля ввода ширины и высоты
         size_input_layout = QHBoxLayout()
         size_input_layout.addWidget(QLabel("Ширина:"))
         self.width_input = QLineEdit()
@@ -247,12 +246,10 @@ class MainWindow(QMainWindow):
 
         size_layout.addLayout(size_input_layout)
 
-        # Чекбокс сохранения пропорций
         self.keep_aspect = QCheckBox("Сохранять пропорции")
         self.keep_aspect.setChecked(True)
         size_layout.addWidget(self.keep_aspect)
 
-        # Кнопки
         size_btn_layout = QHBoxLayout()
         self.btn_apply_size = QPushButton("Применить размер")
         self.btn_apply_size.clicked.connect(self.apply_size)
@@ -339,7 +336,6 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(q_img)
         self.image_label.set_image(pixmap)
 
-        # Обновляем поля размера
         self.width_input.setText(str(w))
         self.height_input.setText(str(h))
         self.current_size_label.setText(f"Текущий размер: {w}x{h}")
@@ -349,14 +345,12 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"Загружено: {file_path} | Размер: {w}x{h}")
 
     def on_size_changed(self):
-        """Автоматический пересчёт при изменении одного поля (если включено сохранение пропорций)"""
         if not self.keep_aspect.isChecked() or self.original_img is None:
             return
 
         h, w = self.original_img.shape[:2]
         aspect_ratio = w / h
 
-        # Определяем, какое поле изменилось
         sender = self.sender()
         if sender == self.width_input:
             try:
@@ -378,7 +372,6 @@ class MainWindow(QMainWindow):
                 pass
 
     def apply_size(self):
-        """Применяет новый размер изображения"""
         if self.original_img is None:
             QMessageBox.warning(self, "Ошибка", "Сначала откройте изображение")
             return
@@ -394,7 +387,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Размеры должны быть больше 0")
             return
 
-        # Используем cv2.resize с интерполяцией
         resized = cv2.resize(
             self.original_img, (new_width, new_height),
             interpolation=cv2.INTER_LANCZOS4
@@ -407,7 +399,6 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"Размер изменён на: {new_width}x{new_height}")
 
     def reset_size(self):
-        """Сбрасывает размер к оригинальному (если есть)"""
         if self.original_img is None:
             return
 
@@ -453,7 +444,6 @@ class MainWindow(QMainWindow):
         self.original_img = transformed
         self.current_img = transformed.copy()
 
-        # Обновляем поля размера
         h, w = self.original_img.shape[:2]
         self.width_input.setText(str(w))
         self.height_input.setText(str(h))
@@ -509,7 +499,6 @@ class MainWindow(QMainWindow):
         self.current_img = blend_images_smooth(warped_left, warped_right, blend_width=100)
         self.original_img = self.current_img.copy()
 
-        # Обновляем поля размера
         h, w = self.original_img.shape[:2]
         self.width_input.setText(str(w))
         self.height_input.setText(str(h))
@@ -575,12 +564,20 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Сначала откройте изображение")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(
+        # ИСПРАВЛЕНО: добавлен фильтр по умолчанию и проверка расширения
+        file_path, selected_filter = QFileDialog.getSaveFileName(
             self, "Сохранить изображение", "",
             "PNG (*.png);;JPEG (*.jpg *.jpeg)"
         )
         if not file_path:
             return
+
+        # Если пользователь не указал расширение — добавляем его автоматически
+        if not file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+            if 'JPEG' in selected_filter:
+                file_path += '.jpg'
+            else:
+                file_path += '.png'
 
         img_bgr = cv2.cvtColor(self.current_img, cv2.COLOR_RGB2BGR)
         cv2.imwrite(file_path, img_bgr)
